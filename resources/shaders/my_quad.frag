@@ -22,8 +22,8 @@ void main()
   float sum_of_k = 0.0;
   vec4 sum_of_col = vec4(0.0);
 
-  for (int i = -WIND_RAD; i < WIND_RAD; ++i)
-    for (int j = -WIND_RAD; j < WIND_RAD; ++j)
+  for (int i = -WIND_RAD; i <= WIND_RAD; ++i)
+    for (int j = -WIND_RAD; j <= WIND_RAD; ++j)
     {
       vec4 changed_color = textureLod(colorTex, surf.texCoord + vec2(i, j) / tex_size, 0);
 
