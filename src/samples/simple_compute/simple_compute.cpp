@@ -257,11 +257,11 @@ void SimpleCompute::Execute()
   const int win_size = 7;
   const int win_rad = win_size / 2;
 
-  for (size_t i = 0; i < randomized.size(); ++i) {
+  for (long long int i = 0; i < randomized.size(); ++i) {
 
     float win_res = 0.0;
 
-    for (int j = -win_rad; j <= win_rad; ++j)
+    for (long long int j = -win_rad; j <= win_rad; ++j)
       if (i + j >= 0 && i + j < randomized.size())
         win_res += randomized[i + j];
 
