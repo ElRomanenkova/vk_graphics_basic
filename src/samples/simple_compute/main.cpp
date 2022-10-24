@@ -5,8 +5,8 @@
   device 1, name = llvmpipe (LLVM 12.0.0, 256 bits)
 }
 
- Time on GPU: 913.616, with mean value: -0.000149048
- Time on CPU: 1283.14, with mean value: 7.49281e-05
+Time on GPU: 1609.52, with mean value: 1.88849e-07
+Time on CPU: 2103.29, with mean value: 1.88849e-07
 */
 
 int main()

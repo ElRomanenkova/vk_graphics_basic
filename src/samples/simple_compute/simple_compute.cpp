@@ -77,11 +77,11 @@ void SimpleCompute::SetupSimplePipeline()
   };
 
   // Создание и аллокация буферов
-  m_random_array = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+  m_random_array = vk_utils::createBuffer(m_device, sizeof(double) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                                                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-  m_result_array = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+  m_result_array = vk_utils::createBuffer(m_device, sizeof(double) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                                                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
@@ -98,18 +98,13 @@ void SimpleCompute::SetupSimplePipeline()
   // Заполнение буферов
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::uniform_real_distribution<float> dist{0.0, 10000.0};
+  std::uniform_real_distribution<double> dist{-100.0, 100.0};
 
-  std::vector<float> values(m_length);
-  for (size_t i = 0; i < values.size(); ++i) {
-    values[i] = (float)dist(gen);
+  std::vector<double> values(m_length);
+  for (double & value : values) {
+    value = (double)dist(gen);
   }
-  m_pCopyHelper->UpdateBuffer(m_random_array, 0, values.data(), sizeof(float) * values.size());
-
-//  std::vector<float> zeros(m_length);
-//  for (auto z : zeros)
-//    z = 0.0;
-//  m_pCopyHelper->UpdateBuffer(m_result_array, 0, zeros.data(), sizeof(float) * zeros.size());
+  m_pCopyHelper->UpdateBuffer(m_random_array, 0, values.data(), sizeof(double) * values.size());
 }
 
 void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeline)
@@ -232,13 +227,13 @@ void SimpleCompute::Execute()
   //Ждём конца выполнения команд
   VK_CHECK_RESULT(vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 100000000000));
 
-  std::vector<float> values(m_length);
-  m_pCopyHelper->ReadBuffer(m_result_array, 0, values.data(), sizeof(float) * values.size());
-  float res = 0.0;
+  std::vector<double> values(m_length);
+  m_pCopyHelper->ReadBuffer(m_result_array, 0, values.data(), sizeof(double) * values.size());
+  double res = 0.0;
   for (auto& v : values) {
     res += v;
   }
-  float gpu_res = res / values.size();
+  double gpu_res = res / values.size();
 
   auto finish = std::chrono::high_resolution_clock::now();
   std::cout << "Time on GPU: " << std::chrono::duration<float, std::milli>{finish - start}.count() << ", with mean value: " << gpu_res << std::endl;
@@ -251,18 +246,20 @@ void SimpleCompute::Execute()
 
   start = std::chrono::high_resolution_clock::now();
 
-  std::vector<float> randomized(m_length);
-  m_pCopyHelper->ReadBuffer(m_random_array, 0, randomized.data(), sizeof(float) * randomized.size());
+  std::vector<double> randomized(m_length);
+  m_pCopyHelper->ReadBuffer(m_random_array, 0, randomized.data(), sizeof(double) * randomized.size());
 
   const int win_size = 7;
   const int win_rad = win_size / 2;
 
-  for (long long int i = 0; i < randomized.size(); ++i) {
+  long long int r_size = randomized.size();
 
-    float win_res = 0.0;
+  for (long long int i = 0; i < r_size; ++i) {
+
+    double win_res = 0.0;
 
     for (long long int j = -win_rad; j <= win_rad; ++j)
-      if (i + j >= 0 && i + j < randomized.size())
+      if (i + j >= 0 && i + j < r_size)
         win_res += randomized[i + j];
 
     values[i] = randomized[i] - win_res / win_size;
@@ -272,7 +269,7 @@ void SimpleCompute::Execute()
   for (auto v : values) {
     res += v;
   }
-  float cpu_res = res / values.size();
+  double cpu_res = res / values.size();
 
   finish = std::chrono::high_resolution_clock::now();
   std::cout << "Time on CPU: " << std::chrono::duration<float, std::milli>{finish - start}.count() << ", with mean value: " << cpu_res << std::endl;

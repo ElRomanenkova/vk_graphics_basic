@@ -8,12 +8,12 @@ layout( push_constant ) uniform params {
 
 layout(std430, binding = 0) buffer a 
 {
-    float A[];
+    double A[];
 };
 
 layout(std430, binding = 1) buffer Res
 {
-    float res[];
+    double res[];
 };
 
 void main() 
@@ -22,7 +22,7 @@ void main()
 
     int win_size = 7;
     int win_rad = win_size / 2;
-    float win_res = 0.0;
+    double win_res = 0.0;
 
     if (idx < PushConstant.len) {
 
