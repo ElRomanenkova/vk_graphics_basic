@@ -2,8 +2,8 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout (rgba32f, binding = 0) uniform readonly  image2D inImage;
-layout (rgba32f, binding = 1) uniform writeonly image2D outImage;
+layout (rgba8, binding = 0) uniform readonly  image2D inImage;
+layout (rgba8, binding = 1) uniform writeonly image2D outImage;
 
 const uint winSize = 11;
 const uint winRad = winSize / 2;
@@ -135,6 +135,6 @@ void main()
 
         imagePart[localId.y + winRad][localId.x + winRad] = sum;
 
-        imageStore(outImage, ivec2(globalId), vec4(imagePart[localId.y + winRad][localId.x + winRad], 1.0));
+        imageStore(outImage, ivec2(globalId), vec4(sum, 1.0));
     }
 }

@@ -18,7 +18,7 @@ void SimpleShadowmapRender::AllocateResources()
   mainViewDepth = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eD32Sfloat,
+    .format     = vk::Format::eD16Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
   });
 
@@ -59,12 +59,12 @@ void SimpleShadowmapRender::AllocateResources()
 
   inImage  = m_context->createImage(etna::Image::CreateInfo{
      .extent     = vk::Extent3D{ m_width, m_height, 1 },
-     .format     = vk::Format::eB8G8R8A8Unorm,
-     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage });
+     .format     = vk::Format::eR8G8B8A8Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc });
 
   outImage = m_context->createImage(etna::Image::CreateInfo{
     .extent     = vk::Extent3D{ m_width, m_height, 1 },
-    .format     = vk::Format::eB8G8R8A8Unorm,
+    .format     = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc });
 }
 
@@ -181,8 +181,8 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .vertexShaderInput = sceneVertexInputDesc,
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
-          .depthAttachmentFormat = vk::Format::eD32Sfloat
+          .colorAttachmentFormats = { vk::Format::eR8G8B8A8Unorm },
+          .depthAttachmentFormat  = vk::Format::eD16Unorm
         }
     });
   m_shadowPipeline = pipelineManager.createGraphicsPipeline("simple_shadow",
