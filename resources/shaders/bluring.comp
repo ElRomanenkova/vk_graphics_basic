@@ -8,13 +8,9 @@ layout (rgba32f, binding = 1) uniform writeonly image2D outImage;
 const uint winSize = 11;
 const uint winRad = winSize / 2;
 
-layout (push_constant) uniform gaussianKernel {
-    float coeffs[winSize];
-} kernel;
-
-float coefsSet[winSize] = {0.000006773449998f,	0.0004917205454f, 0.01377499895f, 0.148911963f,	0.621201359f, 1.0f,
-                                    0.621201359f, 0.148911963f, 0.01377499895f, 0.0004917205454f, 0.000006773449998f};
-
+layout (push_constant) uniform blurConsts {
+    float coefs[winSize];
+} winCoefs;
 
 shared vec3[32 + winSize - 1][32 + winSize - 1] imagePart;
 
@@ -117,8 +113,8 @@ void main()
 
         for (int i = 0; i < winSize; i++)
         {
-            sum  += coefsSet[winRad] * imagePart[localId.y + i][localId.x + winRad];
-            norm += coefsSet[winRad];
+            sum  += winCoefs.coefs[winRad] * imagePart[localId.y + i][localId.x + winRad];
+            norm += winCoefs.coefs[winRad];
         }
         sum /= norm;
         barrier();
@@ -131,8 +127,8 @@ void main()
 
         for (int i = 0; i < winSize; ++i)
         {
-            sum  += coefsSet[winRad] * imagePart[localId.y + winRad][localId.x + i];
-            norm += coefsSet[winRad];
+            sum  += winCoefs.coefs[winRad] * imagePart[localId.y + winRad][localId.x + i];
+            norm += winCoefs.coefs[winRad];
         }
         sum /= norm;
         barrier();
