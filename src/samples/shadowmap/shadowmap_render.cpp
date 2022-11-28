@@ -156,24 +156,40 @@ void SimpleShadowmapRender::CreateDevice(uint32_t a_deviceId)
 void SimpleShadowmapRender::SetupSimplePipeline()
 {
   std::vector<std::pair<VkDescriptorType, uint32_t> > dtypes = {
-      {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             1},
-      {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,     2}
+      {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             2},
+      {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,     3},
+      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             6}
   };
 
-  m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_device, dtypes, 2);
+  m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_device, dtypes, 4);
   
   auto shadowMap = m_pShadowMap2->m_attachments[m_shadowMapId];
-
-  m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
+   
+  //for instancing pipeline
+  m_pBindings->BindBegin(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
   m_pBindings->BindBuffer(0, m_ubo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
   m_pBindings->BindImage (1, shadowMap.view, m_pShadowMap2->m_sampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-  m_pBindings->BindEnd(&m_dSet, &m_dSetLayout);
+  m_pBindings->BindBuffer(2, m_matrices, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindBuffer(3, m_visibleInstances, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindEnd(&m_dSetInst, &m_dSetInstLayout);
 
-  //m_pBindings->BindImage(0, m_GBufTarget->m_attachments[m_GBuf_idx[GBUF_ATTACHMENT::POS_Z]].view, m_GBufTarget->m_sampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
+  //for shadowmap pipeline
   m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
   m_pBindings->BindImage(0, shadowMap.view, m_pShadowMap2->m_sampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
   m_pBindings->BindEnd(&m_quadDS, &m_quadDSLayout);
+
+  //for compute frustum culling pipeline
+  m_pBindings->BindBegin(VK_SHADER_STAGE_COMPUTE_BIT);
+  m_pBindings->BindBuffer(0, m_matrices, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindBuffer(1, m_visibleInstances, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindBuffer(2, m_instVisibleCount, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindEnd(&m_computeDS, &m_computeDSLayout);
+
+
+  m_pBindings->BindBegin(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+  m_pBindings->BindBuffer(0, m_ubo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+  m_pBindings->BindImage(1, shadowMap.view, m_pShadowMap2->m_sampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+  m_pBindings->BindEnd(&m_dSet, &m_dSetLayout);
 
   // if we are recreating pipeline (for example, to reload shaders)
   // we need to cleanup old pipeline
@@ -194,9 +210,28 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     m_shadowPipeline.pipeline = VK_NULL_HANDLE;
   }
 
+  if (m_instPipeline.layout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_instPipeline.layout, nullptr);
+    m_instPipeline.layout = VK_NULL_HANDLE;
+  }
+
+  if (m_instPipeline.pipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_instPipeline.pipeline, nullptr);
+    m_instPipeline.pipeline = VK_NULL_HANDLE;
+  }
+
   vk_utils::GraphicsPipelineMaker maker;
+  vk_utils::ComputePipelineMaker computeMaker;
+
+  // pipeline for frustum culling
+  //
+  computeMaker.LoadShader(m_device, "../resources/shaders/frustum_culling.comp.spv");
+  m_computePipeline.layout   = computeMaker.MakeLayout(m_device, { m_computeDSLayout }, sizeof(pushConst2Comp));
+  m_computePipeline.pipeline = computeMaker.MakePipeline(m_device);
   
-  // pipeline for drawing objects
+  // pipeline for drawing objects (small picture in the middle)
   //
   std::unordered_map<VkShaderStageFlagBits, std::string> shader_paths;
   {
@@ -212,6 +247,21 @@ void SimpleShadowmapRender::SetupSimplePipeline()
                                                        m_screenRenderPass);
                                                        //, {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR}
   
+  // pipeline for instancig teapots 
+  //
+  shader_paths.clear();
+  {
+    shader_paths[VK_SHADER_STAGE_FRAGMENT_BIT] = "../resources/shaders/simple_shadow.frag.spv";
+    shader_paths[VK_SHADER_STAGE_VERTEX_BIT]   = "../resources/shaders/instancing.vert.spv";
+  }
+  maker.LoadShaders(m_device, shader_paths);
+
+  m_instPipeline.layout = maker.MakeLayout(m_device, { m_dSetInstLayout }, sizeof(pushConst2M));
+  maker.SetDefaultState(m_width, m_height);
+
+  m_instPipeline.pipeline = maker.MakePipeline(m_device, m_pScnMgr->GetPipelineVertexInputStateCreateInfo(), m_screenRenderPass);
+
+
   // pipeline for rendering objects to shadowmap
   //
   // maker.SetDefaultState(m_width, m_height);
@@ -247,6 +297,60 @@ void SimpleShadowmapRender::CreateUniformBuffer()
   vkMapMemory(m_device, m_uboAlloc, 0, sizeof(m_uniforms), 0, &m_uboMappedMem);
 
   UpdateUniformBuffer(0.0f);
+
+  // Allocate matrices buffer
+  //
+  m_matrices = vk_utils::createBuffer(m_device, sizeof(float4x4) * pushConst2Comp.instNumber, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
+
+  allocateInfo                 = {};
+  allocateInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocateInfo.pNext           = nullptr;
+  allocateInfo.allocationSize  = memReq.size;
+  allocateInfo.memoryTypeIndex = vk_utils::findMemoryType(memReq.memoryTypeBits,
+                                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
+                                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                                                          m_physicalDevice);
+
+  VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_matricesAlloc));
+  VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_matrices, m_matricesAlloc, 0));
+
+  vkMapMemory(m_device, m_matricesAlloc, 0, sizeof(float4x4) * pushConst2Comp.instNumber, 0, &m_matricesMappedMem);
+
+  // Visible indices buffer
+
+  m_visibleInstances = vk_utils::createBuffer(m_device, sizeof(uint32_t) * pushConst2Comp.instNumber, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
+
+  allocateInfo                 = {};
+  allocateInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocateInfo.pNext           = nullptr;
+  allocateInfo.allocationSize  = memReq.size;
+  allocateInfo.memoryTypeIndex = vk_utils::findMemoryType(memReq.memoryTypeBits,
+                                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
+                                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                          m_physicalDevice);
+
+  VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_visibleInstancesAlloc));
+  VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_visibleInstances, m_visibleInstancesAlloc, 0));
+
+  vkMapMemory(m_device, m_visibleInstancesAlloc, 0, sizeof(uint32_t) * pushConst2Comp.instNumber, 0, &m_visibleInstancesMappedMem);
+
+  // Visible instances counter buffer
+
+  m_instVisibleCount = vk_utils::createBuffer(m_device, sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
+
+  allocateInfo                 = {};
+  allocateInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocateInfo.pNext           = nullptr;
+  allocateInfo.allocationSize  = memReq.size;
+  allocateInfo.memoryTypeIndex = vk_utils::findMemoryType(memReq.memoryTypeBits,
+                                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
+                                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                          m_physicalDevice);
+
+  VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_instVisibleCountAlloc));
+  VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_instVisibleCount, m_instVisibleCountAlloc, 0));
+
+  vkMapMemory(m_device, m_instVisibleCountAlloc, 0, sizeof(uint32_t), 0, &m_instVisibleCountMappedMem);
 }
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
@@ -293,6 +397,27 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   }
 }
 
+void SimpleShadowmapRender::DrawInstancesCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp)
+{
+  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+  VkDeviceSize zero_offset = 0u;
+  VkBuffer vertexBuf       = m_pScnMgr->GetVertexBuffer();
+  VkBuffer indexBuf        = m_pScnMgr->GetIndexBuffer();
+
+  vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &vertexBuf, &zero_offset);
+  vkCmdBindIndexBuffer(a_cmdBuff, indexBuf, 0, VK_INDEX_TYPE_UINT32);
+
+  pushConst2M.projView = a_wvp;
+  pushConst2M.model    = m_pScnMgr->GetInstanceMatrix(1);
+  vkCmdPushConstants(a_cmdBuff, m_instPipeline.layout, stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
+
+  auto inst_info = m_pScnMgr->GetInstanceInfo(1);
+  auto mesh_info = m_pScnMgr->GetMeshInfo(inst_info.mesh_id);
+  
+  vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, *static_cast<uint32_t *>(m_instVisibleCountMappedMem), mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
+}
+
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebuffer a_frameBuff,
                                                      VkImageView a_targetImageView, VkPipeline a_pipeline)
 {
@@ -322,6 +447,67 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   std::vector<VkRect2D> scissors = {scissor};
   vkCmdSetViewport(a_cmdBuff, 0, 1, viewports.data());
   vkCmdSetScissor(a_cmdBuff, 0, 1, scissors.data());
+
+   {
+    std::array barriers{
+      VkBufferMemoryBarrier{
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_instVisibleCount,
+        .size          = VK_WHOLE_SIZE },
+      VkBufferMemoryBarrier{
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_visibleInstances,
+        .size          = VK_WHOLE_SIZE }
+    };
+
+    vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                                    VK_DEPENDENCY_BY_REGION_BIT, 
+                                    0, nullptr, 
+                                    static_cast<uint32_t>(barriers.size()), 
+                                    barriers.data(), 
+                                    0, nullptr);
+  }
+
+  // compute frustum culling
+  //
+  {
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.pipeline);
+    vkCmdFillBuffer(a_cmdBuff, m_instVisibleCount, 0, VK_WHOLE_SIZE, 0);
+
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.layout, 0, 1, &m_computeDS, 0, NULL);
+    vkCmdPushConstants(a_cmdBuff, m_computePipeline.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConst2Comp), &pushConst2Comp);
+    vkCmdDispatch(a_cmdBuff, pushConst2Comp.instNumber / 32 + 1, 1, 1);
+  }
+
+  {
+    std::array barriers{
+      VkBufferMemoryBarrier{
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_instVisibleCount,
+        .size          = VK_WHOLE_SIZE },
+      VkBufferMemoryBarrier{
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_visibleInstances,
+        .size          = VK_WHOLE_SIZE }
+    };
+
+    vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                                    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 
+                                    VK_DEPENDENCY_BY_REGION_BIT, 
+                                    0, nullptr, 
+                                    static_cast<uint32_t>(barriers.size()),
+                                    barriers.data(), 
+                                    0, nullptr);
+  }
 
   //// draw scene to shadowmap
   //
@@ -359,6 +545,11 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.layout, 0, 1, &m_dSet, 0, VK_NULL_HANDLE);
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_instPipeline.pipeline);
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_instPipeline.layout, 0, 1, &m_dSetInst, 0, VK_NULL_HANDLE);
+
+    DrawInstancesCmd(a_cmdBuff, m_worldViewProj);
 
     vkCmdEndRenderPass(a_cmdBuff);
   }
@@ -475,6 +666,29 @@ void SimpleShadowmapRender::Cleanup()
   {
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
   }
+
+  if (m_computePipeline.pipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_computePipeline.pipeline, nullptr);
+  }
+  if (m_computePipeline.layout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_computePipeline.layout, nullptr);
+  }
+
+  if (m_instPipeline.pipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_instPipeline.pipeline, nullptr);
+  }
+  if (m_instPipeline.layout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_instPipeline.layout, nullptr);
+  }
+
+  vkDestroyBuffer(m_device, m_ubo, nullptr);
+  vkDestroyBuffer(m_device, m_matrices, nullptr);
+  vkDestroyBuffer(m_device, m_visibleInstances, nullptr);
+  vkDestroyBuffer(m_device, m_instVisibleCount, nullptr);
 }
 
 void SimpleShadowmapRender::ProcessInput(const AppInput &input)
@@ -526,7 +740,8 @@ void SimpleShadowmapRender::UpdateView()
   auto mWorldViewProj = mProjFix * mProj * mLookAt;
   
   m_worldViewProj = mWorldViewProj;
-  
+  pushConst2Comp.projView = m_worldViewProj;
+
   ///// calc light matrix
   //
   if(m_light.usePerspectiveM)
@@ -557,6 +772,17 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
   UpdateView();
+
+  auto *inst_mats = static_cast<float4x4 *>(m_matricesMappedMem);
+  for (int i = 0; i < pushConst2Comp.instNumber; ++i)
+  {
+    auto model = m_pScnMgr->GetInstanceMatrix(1);
+    model.col(3).x += (i / 100 - 50) * 2;
+    model.col(3).y += (i % 100 - 50) * 2;
+    inst_mats[i] = model;
+  }
+  auto inst          = m_pScnMgr->GetInstanceInfo(1);
+  pushConst2Comp.box = m_pScnMgr->GetMeshBbox(inst.mesh_id);
 
   for (uint32_t i = 0; i < m_framesInFlight; ++i)
   {

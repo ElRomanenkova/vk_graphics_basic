@@ -89,19 +89,44 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    float4x4 projView;
+    Box4f box;
+    uint32_t instNumber = 1000;
+  } pushConst2Comp;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
   UniformParams m_uniforms {};
-  VkBuffer m_ubo = VK_NULL_HANDLE;
+
+  VkBuffer m_ubo            = VK_NULL_HANDLE;
   VkDeviceMemory m_uboAlloc = VK_NULL_HANDLE;
-  void* m_uboMappedMem = nullptr;
+  void* m_uboMappedMem      = nullptr;
+
+  VkBuffer m_matrices            = VK_NULL_HANDLE;
+  VkDeviceMemory m_matricesAlloc = VK_NULL_HANDLE;
+  void *m_matricesMappedMem      = nullptr;
+
+  VkBuffer m_visibleInstances            = VK_NULL_HANDLE;
+  VkDeviceMemory m_visibleInstancesAlloc = VK_NULL_HANDLE;
+  void *m_visibleInstancesMappedMem      = nullptr;
+
+  VkBuffer m_instVisibleCount            = VK_NULL_HANDLE;
+  VkDeviceMemory m_instVisibleCountAlloc = VK_NULL_HANDLE;
+  void *m_instVisibleCountMappedMem      = nullptr;
 
   pipeline_data_t m_basicForwardPipeline {};
   pipeline_data_t m_shadowPipeline {};
+  pipeline_data_t m_computePipeline{};
+  pipeline_data_t m_instPipeline{};
 
-  VkDescriptorSet m_dSet = VK_NULL_HANDLE;
-  VkDescriptorSetLayout m_dSetLayout = VK_NULL_HANDLE;
+  VkDescriptorSet m_dSet                 = VK_NULL_HANDLE;
+  VkDescriptorSetLayout m_dSetLayout     = VK_NULL_HANDLE;
+  VkDescriptorSet m_dSetInst             = VK_NULL_HANDLE;
+  VkDescriptorSetLayout m_dSetInstLayout = VK_NULL_HANDLE;
+
   VkRenderPass m_screenRenderPass = VK_NULL_HANDLE; // main renderpass
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
@@ -115,6 +140,7 @@ private:
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
+  uint32_t m_instances      = 10000u;
   bool m_vsync = false;
 
   VkPhysicalDeviceFeatures m_enabledDeviceFeatures = {};
@@ -136,6 +162,8 @@ private:
   VkDeviceMemory        m_memShadowMap = VK_NULL_HANDLE;
   VkDescriptorSet       m_quadDS; 
   VkDescriptorSetLayout m_quadDSLayout = nullptr;
+  VkDescriptorSet       m_computeDS;
+  VkDescriptorSetLayout m_computeDSLayout = nullptr;
 
   struct InputControlMouseEtc
   {
@@ -174,6 +202,7 @@ private:
                                 VkImageView a_targetImageView, VkPipeline a_pipeline);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawInstancesCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp);
 
   void SetupSimplePipeline();
   void CleanupPipelineAndSwapchain();
