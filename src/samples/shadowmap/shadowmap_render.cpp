@@ -300,7 +300,7 @@ void SimpleShadowmapRender::CreateUniformBuffer()
 
   // Allocate matrices buffer
   //
-  m_matrices = vk_utils::createBuffer(m_device, sizeof(float4x4) * pushConst2Comp.instNumber, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
+  m_matrices = vk_utils::createBuffer(m_device, sizeof(float4x4) * m_instances, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
 
   allocateInfo                 = {};
   allocateInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -314,11 +314,11 @@ void SimpleShadowmapRender::CreateUniformBuffer()
   VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_matricesAlloc));
   VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_matrices, m_matricesAlloc, 0));
 
-  vkMapMemory(m_device, m_matricesAlloc, 0, sizeof(float4x4) * pushConst2Comp.instNumber, 0, &m_matricesMappedMem);
+  vkMapMemory(m_device, m_matricesAlloc, 0, sizeof(float4x4) * m_instances, 0, &m_matricesMappedMem);
 
   // Visible indices buffer
 
-  m_visibleInstances = vk_utils::createBuffer(m_device, sizeof(uint32_t) * pushConst2Comp.instNumber, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
+  m_visibleInstances = vk_utils::createBuffer(m_device, sizeof(uint32_t) * m_instances, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
 
   allocateInfo                 = {};
   allocateInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -332,7 +332,7 @@ void SimpleShadowmapRender::CreateUniformBuffer()
   VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_visibleInstancesAlloc));
   VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_visibleInstances, m_visibleInstancesAlloc, 0));
 
-  vkMapMemory(m_device, m_visibleInstancesAlloc, 0, sizeof(uint32_t) * pushConst2Comp.instNumber, 0, &m_visibleInstancesMappedMem);
+  vkMapMemory(m_device, m_visibleInstancesAlloc, 0, sizeof(uint32_t) * m_instances, 0, &m_visibleInstancesMappedMem);
 
   // Visible instances counter buffer
 
@@ -379,17 +379,6 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   {
     auto inst         = m_pScnMgr->GetInstanceInfo(i);
     pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
-    vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.layout, stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
-
-    auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
-    vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, 1, mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
-  }
-  for (int i = 0; i < 10000; ++i)
-  {
-    auto inst         = m_pScnMgr->GetInstanceInfo(1);
-    pushConst2M.model = m_pScnMgr->GetInstanceMatrix(1);
-    pushConst2M.model.col(3).x += (i / 100 - 50) * 2;
-    pushConst2M.model.col(3).y += (i % 100 - 50) * 2;
     vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.layout, stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
     auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
@@ -481,7 +470,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.layout, 0, 1, &m_computeDS, 0, NULL);
     vkCmdPushConstants(a_cmdBuff, m_computePipeline.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConst2Comp), &pushConst2Comp);
-    vkCmdDispatch(a_cmdBuff, pushConst2Comp.instNumber / 32 + 1, 1, 1);
+    vkCmdDispatch(a_cmdBuff, m_instances / 32 + 1, 1, 1);
   }
 
   {
@@ -774,14 +763,15 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   UpdateView();
 
   auto *inst_mats = static_cast<float4x4 *>(m_matricesMappedMem);
-  for (int i = 0; i < pushConst2Comp.instNumber; ++i)
+  for (uint i = 0; i < m_instances; ++i)
   {
     auto model = m_pScnMgr->GetInstanceMatrix(1);
-    model.col(3).x += (i / 100 - 50) * 2;
-    model.col(3).y += (i % 100 - 50) * 2;
+    model.col(3).x += (float(i) / 100 - 50) * 2;
+    model.col(3).y += (float(i % 100) - 50) * 2;
     inst_mats[i] = model;
   }
-  auto inst          = m_pScnMgr->GetInstanceInfo(1);
+  auto inst = m_pScnMgr->GetInstanceInfo(1);
+  pushConst2Comp.instNumber = m_instances;
   pushConst2Comp.box = m_pScnMgr->GetMeshBbox(inst.mesh_id);
 
   for (uint32_t i = 0; i < m_framesInFlight; ++i)

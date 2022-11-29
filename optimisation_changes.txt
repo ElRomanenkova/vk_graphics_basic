@@ -1,0 +1,5 @@
+Basic performance            | 0.25 FPS
+--------------------------------------
+Fructum culling for teapots  |
++                            | 7.5 FPS
+Instancing of teapots        |

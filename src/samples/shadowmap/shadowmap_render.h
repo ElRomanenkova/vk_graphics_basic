@@ -93,7 +93,7 @@ private:
   {
     float4x4 projView;
     Box4f box;
-    uint32_t instNumber = 1000;
+    uint32_t instNumber;
   } pushConst2Comp;
 
   float4x4 m_worldViewProj;
