@@ -47,8 +47,12 @@ private:
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer matrices;
+  etna::Buffer instanceVisibleCount;
+  etna::Buffer visibleInstances;
+  etna::Buffer indirectBuffer;
 
-  VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
+  VkCommandPool   m_commandPool   = VK_NULL_HANDLE;
 
   struct
   {
@@ -67,14 +71,28 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    float4x4 projView;
+    Box4f box;
+    uint32_t instNumber;
+  } pushConst2Comp;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
+  uint32_t m_numInstances = 10000;
+
   UniformParams m_uniforms {};
-  void* m_uboMappedMem = nullptr;
+  void* m_uboMappedMem         = nullptr;
+  void *m_matrices             = nullptr;
+  void *m_instanceVisibleCount = nullptr;
+  void *m_visibleInstances     = nullptr;
+  void *m_indirectBuffer       = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::ComputePipeline m_computePipeline{};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -91,11 +109,13 @@ private:
   std::vector<const char*> m_deviceExtensions;
   std::vector<const char*> m_instanceExtensions;
 
-  std::shared_ptr<SceneManager>     m_pScnMgr;
+  std::shared_ptr<SceneManager>    m_pScnMgr;
   
-  std::shared_ptr<vk_utils::IQuad>               m_pFSQuad;
+  std::shared_ptr<vk_utils::IQuad> m_pFSQuad;
   VkDescriptorSet       m_quadDS; 
   VkDescriptorSetLayout m_quadDSLayout = nullptr;
+  VkDescriptorSet       m_computeDS;
+  VkDescriptorSetLayout m_computeDSLayout = nullptr;
 
   struct InputControlMouseEtc
   {
@@ -132,6 +152,7 @@ private:
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
+  void RunComputeShader(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
 
   void loadShaders();

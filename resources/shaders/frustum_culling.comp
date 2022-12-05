@@ -1,0 +1,77 @@
+#version 430
+#extension GL_GOOGLE_include_directive : require
+
+#include "common.h"
+
+layout( local_size_x = 32 ) in;
+
+struct BoundingBox
+{
+  vec4 first;
+  vec4 second;
+};
+
+layout(push_constant) uniform params
+{
+    mat4 projView;
+    BoundingBox box;
+    uint instNumber;
+} PushConstant;
+
+layout(std430, binding = 0) readonly buffer IMatrices
+{
+    mat4 instMatrices[];
+};
+
+layout(std430, binding = 1) buffer VObjCount
+{
+    uint visibleObjCount;
+};
+
+layout(std430, binding = 2) buffer VObjInd
+{
+    uint visibleObjInd[];
+};
+
+bool isObjVisible(mat4 mat, BoundingBox box)
+{
+    vec4 box_vertecis[8] = {
+        {box.first.x,  box.first.y,  box.first.z, 1.f},
+        {box.second.x, box.first.y,  box.first.z, 1.f},
+        {box.first.x,  box.second.y, box.first.z, 1.f},
+        {box.second.x, box.second.y, box.first.z, 1.f},
+
+        {box.first.x,  box.first.y,  box.second.z, 1.f},
+        {box.second.x, box.first.y,  box.second.z, 1.f},
+        {box.first.x,  box.second.y, box.second.z, 1.f},
+        {box.second.x, box.second.y, box.second.z, 1.f},
+    };
+
+    for (uint i = 0; i < 8; i++)
+    {
+        vec4 vertex = mat * box_vertecis[i];
+
+        bool isVisible = -vertex.w <= vertex.x && vertex.x <= vertex.w &&
+                         -vertex.w <= vertex.y && vertex.y <= vertex.w &&
+                               0.f <= vertex.z && vertex.z <= vertex.w;
+
+        if (isVisible)
+            return true;
+    }
+
+    return false;
+}
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx < PushConstant.instNumber)
+    {
+        mat4 mat_mvp = PushConstant.projView * instMatrices[idx];
+
+        if (isObjVisible(mat_mvp, PushConstant.box))
+        {
+            uint is_visible_idx = atomicAdd(visibleObjCount, 1);
+            visibleObjInd[is_visible_idx] = idx;
+        }
+    }
+}
