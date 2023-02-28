@@ -50,6 +50,9 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
+  float illuminantInner  = 7.f;
+  float illuminantOuter = 14.f;
+
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct
