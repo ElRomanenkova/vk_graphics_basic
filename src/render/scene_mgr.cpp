@@ -43,18 +43,7 @@ bool SceneManager::LoadSceneXML(const std::string &scenePath, bool transpose)
     return false;
   }
 
-  for(auto loc : hscene_main->MeshFiles())
-  {
-    auto meshId    = AddMeshFromFile(loc);
-    auto instances = hscene_main->GetAllInstancesOfMeshLoc(loc); 
-    for(size_t j = 0; j < instances.size(); ++j)
-    {
-      if(transpose)
-        InstanceMesh(meshId, LiteMath::transpose(instances[j]));
-      else
-        InstanceMesh(meshId, instances[j]);
-    }
-  }
+  GenQuadMesh(1025);
 
   for(auto cam : hscene_main->Cameras())
   {
@@ -125,6 +114,67 @@ void SceneManager::LoadSingleTriangle()
   m_pCopyHelper->UpdateBuffer(m_geoIdxBuf,  0, indices.data(), indexBufSize);
 }
 
+
+void SceneManager::GenQuadMesh(int resolution)
+{
+  cmesh::SimpleMesh mesh = cmesh::SimpleMesh();
+
+  float step = 1.f / resolution;
+  float offsetX = 0.5f;
+  float offsetZ = 0.5f;
+
+  mesh.vPos4f.resize(4 * resolution * resolution);
+  mesh.vNorm4f.resize(4 * resolution * resolution);
+  mesh.vTexCoord2f.resize(2 * resolution * resolution);
+  mesh.vTang4f = std::vector<float>(mesh.vPos4f.size(), 0);
+
+  int posIdx  = 0;
+  int normIdx = 0;
+  int texCoordIdx = 0;
+
+  for (int i = 0; i < resolution; ++i)
+  {
+    for (int j = 0; j < resolution; ++j)
+    {
+      mesh.vPos4f[posIdx++] = j * step - offsetX;
+      mesh.vPos4f[posIdx++] = 0.f;
+      mesh.vPos4f[posIdx++] = i * step - offsetZ;
+      mesh.vPos4f[posIdx++] = 1.f;
+
+      mesh.vNorm4f[normIdx++] = 0.;
+      mesh.vNorm4f[normIdx++] = 1.;
+      mesh.vNorm4f[normIdx++] = 0.;
+      mesh.vNorm4f[normIdx++] = 0.;
+
+      mesh.vTexCoord2f[texCoordIdx++] = (float)j * step;
+      mesh.vTexCoord2f[texCoordIdx++] = (float)i * step;
+    }
+  }
+  mesh.indices.resize(6 * (resolution - 1) * (resolution - 1));
+
+  int t = 0;
+  for (int i = 0; i < resolution - 1; ++i)
+  {
+    for (int j = 0; j < resolution - 1; ++j)
+    {
+      mesh.indices[t++] = i * resolution + j;
+      mesh.indices[t++] = i * resolution + j + 1;
+      mesh.indices[t++] = (i + 1) * resolution + j;
+
+      mesh.indices[t++] = (i + 1) * resolution + j;
+      mesh.indices[t++] = (i + 1) * resolution + j + 1;
+      mesh.indices[t++] = i * resolution + j + 1;
+    }
+  }
+
+  AddMeshFromData(mesh);
+
+  float3 meshPos  = {0.f, 0.f, 0.f};
+  float meshScale = 25.f;
+
+  LiteMath::float4x4 meshMat = LiteMath::translate4x4(meshPos) * LiteMath::scale4x4(float3(meshScale));
+  m_instanceMatrices.push_back(meshMat);
+}
 
 
 uint32_t SceneManager::AddMeshFromFile(const std::string& meshPath)

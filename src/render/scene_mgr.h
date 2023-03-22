@@ -36,6 +36,8 @@ struct SceneManager
   void MarkInstance(uint32_t instId);
   void UnmarkInstance(uint32_t instId);
 
+  void GenQuadMesh(int resolution);
+
   void DrawMarkedInstances();
 
   void DestroyScene();
