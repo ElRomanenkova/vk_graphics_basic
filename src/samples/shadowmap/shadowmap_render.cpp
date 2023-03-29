@@ -46,7 +46,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{2048, 2048, 1},
     .name = "vsm_shadow_map",
-    .format = vk::Format::eR16G16Unorm,
+    .format = vk::Format::eR32G32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eStorage |
     vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc
   });
@@ -55,7 +55,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{2048, 2048 ,1},
     .name = "squared_vsm_map",
-    .format = vk::Format::eR16G16Unorm,
+    .format = vk::Format::eR32G32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment |
     vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc
   });
@@ -186,7 +186,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .vertexShaderInput = sceneVertexInputDesc,
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR16G16Unorm},
+          .colorAttachmentFormats = {vk::Format::eR32G32Sfloat},
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });

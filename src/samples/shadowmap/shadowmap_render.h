@@ -92,7 +92,7 @@ private:
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
   bool m_vsync = false;
-  uint32_t m_blurWinSize = 11;
+  uint32_t m_blurWinSize = 15;
   std::vector<float> m_gaussianCoefficients;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
