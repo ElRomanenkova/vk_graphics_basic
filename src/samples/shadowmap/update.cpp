@@ -44,8 +44,14 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.lightMatrix = m_lightMatrix;
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
+  m_uniforms.wCameraPos  = m_cam.pos;
+
+  m_noiseParams.extinctionCoef = m_extinctionCoef;
+  m_noiseParams.noiseScale = m_noiseScale;
+  m_noiseParams.boxSize = m_boxSize;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
+  memcpy(m_noiseMappedMem, &m_noiseParams, sizeof(m_noiseParams));
 }
 
 void SimpleShadowmapRender::ProcessInput(const AppInput &input)

@@ -47,8 +47,12 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image postFx;
   etna::Sampler defaultSampler;
+  etna::Sampler linearSampler;
   etna::Buffer constants;
+  etna::Buffer noiseData;
+  etna::Buffer boxIndexBuffer;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -68,8 +72,8 @@ private:
     float4x4 projView;
     float4x4 model;
     shader_uint  quadResolution = 1024u;
-    shader_float minHeight = 0.f;
-    shader_float maxHeight = 6.f;
+    shader_float minHeight = 3.5f;
+    shader_float maxHeight = 4.f;
   } pushConst2M;
 
   float4x4 m_worldViewProj;
@@ -78,8 +82,16 @@ private:
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 
+  float m_extinctionCoef = 1.5f;
+  float3 m_noiseScale = {3.f, 8.f, 6.f};
+  float3 m_boxSize = {6.f, 6.f, 15.f};
+  NoiseParams m_noiseParams {};
+  void* m_noiseMappedMem = nullptr;
+
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_fogPipeline {};
+  etna::GraphicsPipeline m_postFxPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -139,6 +151,7 @@ private:
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawCubeCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
 
   void loadShaders();
 

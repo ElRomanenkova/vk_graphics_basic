@@ -49,6 +49,14 @@ struct UniformParams
   shader_float time;
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
+  shader_vec3  wCameraPos;
+};
+
+struct NoiseParams
+{
+  shader_vec3  noiseScale;
+  shader_float extinctionCoef;
+  shader_vec3  boxSize;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H
