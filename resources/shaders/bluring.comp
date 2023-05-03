@@ -1,0 +1,156 @@
+#version 430
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout (r32f, binding = 0) uniform readonly  image2D inImage;
+layout (r32f, binding = 1) uniform writeonly image2D outImage;
+layout (rgba32f, binding = 2) uniform readonly image2D position;
+
+const uint winSize = 23;
+const uint winRad = winSize / 2;
+
+layout (push_constant) uniform blurConsts {
+    float coefs[winSize];
+} winCoefs;
+
+shared vec3[32 + winSize - 1][32 + winSize - 1] imagePart;
+
+
+void prepImgPartToShared(uvec2 glob_id, uvec2 loc_id, uvec2 work_size, uvec2 image_size)
+{
+    imagePart[loc_id.y + winRad][loc_id.x + winRad] = imageLoad(inImage, ivec2(glob_id)).rgb;
+
+    //-------------------------------------//
+
+    if (loc_id.x < winRad)
+    {
+        if (glob_id.x < winRad)
+            imagePart[loc_id.y + winRad][loc_id.x] = vec3(0.0f);
+        else
+            imagePart[loc_id.y + winRad][loc_id.x] = imageLoad(inImage, ivec2(glob_id.x - winRad, glob_id.y)).rgb;
+    }
+
+    if (loc_id.y < winRad)
+    {
+        if (glob_id.y < winRad)
+            imagePart[loc_id.y][loc_id.x + winRad] = vec3(0.0f);
+        else
+            imagePart[loc_id.y][loc_id.x + winRad] = imageLoad(inImage, ivec2(glob_id.x, glob_id.y - winRad)).rgb;
+    }
+
+    //-------------------------------------//
+
+    if (loc_id.x < winRad && loc_id.y < winRad)
+    {
+        if (glob_id.x < winRad || glob_id.y < winRad)
+            imagePart[loc_id.y][loc_id.x] = vec3(0.0f);
+        else
+            imagePart[loc_id.y][loc_id.x] = imageLoad(inImage, ivec2(glob_id.x - winRad, glob_id.y - winRad)).rgb;
+    }
+
+    if (loc_id.x > work_size.x - winRad - 1)
+    {
+        if (glob_id.x + winRad > image_size.x - 1)
+            imagePart[loc_id.y + winRad][loc_id.x + 2*winRad] = vec3(0.0f);
+        else
+            imagePart[loc_id.y + winRad][loc_id.x + 2*winRad] = imageLoad(inImage, ivec2(glob_id.x + winRad, glob_id.y)).rgb;
+    }
+
+    if (loc_id.y > work_size.y - winRad - 1)
+    {
+        if (glob_id.y + winRad > image_size.y - 1)
+            imagePart[loc_id.y + 2*winRad][loc_id.x + winRad] = vec3(0.0f);
+        else
+            imagePart[loc_id.y + 2*winRad][loc_id.x + winRad] = imageLoad(inImage, ivec2(glob_id.x, glob_id.y + winRad)).rgb;
+    }
+
+    //-------------------------------------//
+
+    if (loc_id.x > work_size.x - winRad - 1 && loc_id.y > work_size.y - winRad - 1)
+    {
+        if (glob_id.x + winRad > image_size.x - 1 || glob_id.y + winRad > image_size.y - 1)
+            imagePart[loc_id.y + 2*winRad][loc_id.x + 2*winRad] = vec3(0.0f);
+        else
+            imagePart[loc_id.y + 2*winRad][loc_id.x + 2*winRad] = imageLoad(inImage, ivec2(glob_id.x + winRad, glob_id.y + winRad)).rgb;
+    }
+
+    if (loc_id.x > work_size.x - winRad - 1 && loc_id.y < winRad)
+    {
+        if (glob_id.x + winRad > image_size.x - 1 || glob_id.y < winRad)
+            imagePart[loc_id.y][loc_id.x + 2*winRad] = vec3(0.0f);
+        else
+            imagePart[loc_id.y][loc_id.x + 2*winRad] = imageLoad(inImage, ivec2(glob_id.x + winRad, glob_id.y - winRad)).rgb;
+    }
+
+    if (loc_id.x < winRad && loc_id.y > work_size.y - winRad - 1)
+    {
+        if (glob_id.x < winRad || glob_id.y + winRad > image_size.y - 1)
+            imagePart[loc_id.y + 2*winRad][loc_id.x] = vec3(0.0f);
+        else
+            imagePart[loc_id.y + 2*winRad][loc_id.x] = imageLoad(inImage, ivec2(glob_id.x - winRad, glob_id.y + winRad)).rgb;
+    }
+
+    //-------------------------------------//
+
+}
+
+
+void main()
+{
+    uvec2 globalId = gl_GlobalInvocationID.xy;
+    uvec2 imgSize = imageSize(inImage);
+
+    if (globalId.x < imgSize.x && globalId.y < imgSize.y)
+    {
+        uvec2 localId = gl_LocalInvocationID.xy;
+        uvec2 workSize  = gl_WorkGroupSize.xy;
+
+        prepImgPartToShared(globalId, localId, workSize, imgSize);
+        float depth1 = imageLoad(position, ivec2(globalId)).z;
+        barrier();
+
+        //vertical pass
+        vec3 sum = vec3(0.0);
+        float norm = 0.0;
+
+        for (int i = 0; i < winSize; i++)
+        {
+            float depth2 = imageLoad(position, ivec2(globalId.x, globalId.y + i - winRad)).z;
+
+            if (abs(depth2 - depth1) <= 0.1)
+            {
+                sum  += winCoefs.coefs[winRad] * imagePart[localId.y + i][localId.x + winRad];
+
+                if (globalId.y + i >= winRad && globalId.y - winRad + i <= imgSize.y)
+                    norm += winCoefs.coefs[winRad];
+            }
+        }
+        sum /= norm;
+        barrier();
+
+        imagePart[localId.y + winRad][localId.x + winRad] = sum;
+
+        //horizontal pass
+        sum = vec3(0.0);
+        norm = 0.0;
+
+        for (int i = 0; i < winSize; ++i)
+        {
+            float depth2 = imageLoad(position, ivec2(globalId.x + i - winRad, globalId.y)).z;
+
+            if (abs(depth2 - depth1) <= 0.1)
+            {
+                sum  += winCoefs.coefs[winRad] * imagePart[localId.y + winRad][localId.x + i];
+
+                if (globalId.y + i >= winRad && globalId.y - winRad + i <= imgSize.y)
+                    norm += winCoefs.coefs[winRad];
+            }
+        }
+        sum /= norm;
+        barrier();
+
+        imagePart[localId.y + winRad][localId.x + winRad] = sum;
+
+        imageStore(outImage, ivec2(globalId), vec4(sum, 1.0));
+    }
+}

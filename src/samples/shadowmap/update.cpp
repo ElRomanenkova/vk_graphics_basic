@@ -22,7 +22,10 @@ void SimpleShadowmapRender::UpdateView()
   auto mWorldViewProj = mProjFix * mProj * mLookAt;
   
   m_worldViewProj = mWorldViewProj;
-  
+  m_uniforms.viewMat = mLookAt;
+  m_uniforms.projMat = mProjFix * mProj;
+  m_uniforms.invViewMat = LiteMath::inverse4x4(mLookAt);
+
   ///// calc light matrix
   //
   if(m_light.usePerspectiveM)

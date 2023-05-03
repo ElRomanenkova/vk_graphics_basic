@@ -49,6 +49,15 @@ struct UniformParams
   shader_float time;
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
+
+  shader_mat4  projMat;
+  shader_mat4  viewMat;
+  shader_mat4  invViewMat;
+
+  shader_bool  isSsao;
+  shader_uint  ssaoNoiseSize;
+  shader_uint  ssaoKernelSize;
+  shader_float ssaoRadius;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

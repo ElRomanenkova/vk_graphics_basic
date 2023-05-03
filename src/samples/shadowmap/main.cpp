@@ -29,6 +29,8 @@ int main()
   constexpr int WIDTH = 1024;
   constexpr int HEIGHT = 1024;
 
+  std::system("cd resources/shaders && python compile_shadowmap_shaders.py");
+
   std::shared_ptr<IRender> app = std::make_unique<SimpleShadowmapRender>(WIDTH, HEIGHT);
   if(app == nullptr)
   {

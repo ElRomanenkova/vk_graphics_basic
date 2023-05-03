@@ -47,8 +47,15 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image positionMap;
+  etna::Image normalMap;
+  etna::Image albedoMap;
+  etna::Image SSAO;
+  etna::Image blurredSSAO;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer ssaoSamples;
+  etna::Buffer ssaoNoise;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -67,6 +74,7 @@ private:
   {
     float4x4 projView;
     float4x4 model;
+    float3 objColor;
   } pushConst2M;
 
   float4x4 m_worldViewProj;
@@ -77,6 +85,10 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_prepareDeferredPipeline {};
+  etna::GraphicsPipeline m_deferredPipeline {};
+  etna::GraphicsPipeline m_ssaoPipeline {};
+  etna::ComputePipeline m_gaussianBlurPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -88,6 +100,12 @@ private:
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
   bool m_vsync = false;
+
+  uint m_gaussWinSize = 21;
+  uint32_t m_blurWinSize = 23;
+  std::vector<float> m_gaussianCoefficients;
+
+  std::vector<float3> objColors;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
   std::vector<const char*> m_deviceExtensions;
