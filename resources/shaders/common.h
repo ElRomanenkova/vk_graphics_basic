@@ -49,6 +49,11 @@ struct UniformParams
   shader_float time;
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
+
+  shader_uint  rsmSampleCount;
+  shader_float rsmRadMax;
+  shader_float rsmIntensity;
+  shader_bool  isRsm;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H
