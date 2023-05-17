@@ -4,6 +4,7 @@
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
 #include <iostream>
+#include <random>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
@@ -57,6 +58,18 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
+
+  //// random object colors
+  //
+  std::random_device colorRd;
+  std::mt19937 colorGen(colorRd());
+  std::uniform_real_distribution<float> colorDis(0.0f, 1.0f);
+
+  for (size_t i = 0; i < m_pScnMgr->InstancesNum(); i++)
+  {
+    float3 color = {colorDis(colorGen), colorDis(colorGen), colorDis(colorGen)};
+    objColors.push_back(color);
+  }
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -153,7 +166,7 @@ void SimpleShadowmapRender::DestroyPipelines()
 
 void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp)
 {
-  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
+  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
   VkDeviceSize zero_offset = 0u;
   VkBuffer vertexBuf = m_pScnMgr->GetVertexBuffer();
@@ -167,6 +180,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   {
     auto inst         = m_pScnMgr->GetInstanceInfo(i);
     pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
+    pushConst2M.objColor = objColors[i];
     vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.getVkPipelineLayout(),
       stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 

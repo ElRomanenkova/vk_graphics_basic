@@ -67,6 +67,7 @@ private:
   {
     float4x4 projView;
     float4x4 model;
+    float3 objColor;
   } pushConst2M;
 
   float4x4 m_worldViewProj;
@@ -88,6 +89,8 @@ private:
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
   bool m_vsync = false;
+
+  std::vector<float3> objColors;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
   std::vector<const char*> m_deviceExtensions;
