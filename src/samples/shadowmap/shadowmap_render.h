@@ -82,9 +82,9 @@ private:
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 
-  float m_extinctionCoef = 1.5f;
-  float3 m_noiseScale = {3.f, 8.f, 6.f};
-  float3 m_boxSize = {6.f, 6.f, 15.f};
+  float m_extinctionCoef = 0.9f;
+  float3 m_noiseScale = {3.f, 6.f, 2.5f};
+  float3 m_boxSize = {6.f, 6.f, 5.f};
   NoiseParams m_noiseParams {};
   void* m_noiseMappedMem = nullptr;
 

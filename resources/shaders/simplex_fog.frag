@@ -139,11 +139,11 @@ float minUnion(float d1, float d2)
 
 float sdfBalls(vec3 q)
 {
-    vec3 qSL = q + vec3( 4* abs(cos(Params.time)), 2.6*abs(sin(2. * Params.time)), 0.0);
-    vec3 qSR = q + vec3(-4* abs(cos(Params.time)), 2.6*abs(sin(2. * Params.time)), 0.0);
+    vec3 qSL = q + vec3( 2* abs(cos(Params.time)), 1.3*abs(sin(2. * Params.time)), 0.0);
+    vec3 qSR = q + vec3(-2* abs(cos(Params.time)), 1.3*abs(sin(2. * Params.time)), 0.0);
 
-    float sphL = dSphere(qSL, vec3 ( 2, 0, 13), abs(cos(Params.time)));
-    float sphR = dSphere(qSR, vec3 (-2, 0, 13), abs(cos(Params.time)));
+    float sphL = dSphere(qSL, vec3 ( 1, 0, 5), 0.6 * abs(cos(Params.time)));
+    float sphR = dSphere(qSR, vec3 (-1, 0, 5), 0.6 * abs(cos(Params.time)));
 
     return minUnion(sphL, sphR);
 }
@@ -158,19 +158,24 @@ float sdfTorus(vec3 p, vec2 t, float waveScale)
 float fogSDF(vec3 queryPos)
 {
     float balls = sdfBalls(queryPos);
-    float torus = sdfTorus(queryPos + vec3(0, 2, -10), vec2(1.5, 0.5), 0.4);
+    float torus = sdfTorus(queryPos + vec3(0, 0.5, -3), vec2(0.5, 0.17), 0.13);
 
     return minUnion(balls, torus);
 }
 
 float getDensity(vec3 position)
 {
-  if (fogSDF(position) < 0)
-    return snoise(vec3(Noise.noiseScale.x * position.x + 5. * sin(0.1 * Params.time),
-                       Noise.noiseScale.y * position.y + 0.3 * sin(0.5 * Params.time),
-                       Noise.noiseScale.z * position.z + 5. * cos(0.1 * Params.time)));
+  if (Noise.isSdf)
+    if (fogSDF(position) < 0)
+      return snoise(vec3(Noise.noiseScale.x * position.x + 5. * sin(0.1 * Params.time),
+                        Noise.noiseScale.y * position.y + 0.3 * sin(0.5 * Params.time),
+                        Noise.noiseScale.z * position.z + 5. * cos(0.1 * Params.time)));
+    else
+      return 0;
   else
-    return 0;
+    return snoise(vec3(Noise.noiseScale.x * position.x + 5. * sin(0.1 * Params.time),
+                        Noise.noiseScale.y * position.y + 0.3 * sin(0.5 * Params.time),
+                        Noise.noiseScale.z * position.z + 5. * cos(0.1 * Params.time)));
 }
 
 void main()
